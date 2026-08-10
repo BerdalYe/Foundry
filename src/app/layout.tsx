@@ -60,7 +60,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    // Next 16 no longer overrides scroll-behavior during navigation; this
+    // attribute opts back in, so route changes still jump instantly while
+    // in-page anchors scroll smoothly.
+    <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>

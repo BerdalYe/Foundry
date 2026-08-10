@@ -92,7 +92,7 @@ const ENTITIES: Record<string, string> = {
  * The document's <title> is markup, so it arrives escaped. Titles are rendered
  * as React text, which would otherwise show a literal "&amp;".
  */
-function decodeEntities(value: string): string {
+export function decodeEntities(value: string): string {
   return value.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (whole, body: string) => {
     if (body[0] === "#") {
       const code =

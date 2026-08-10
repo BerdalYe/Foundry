@@ -4,6 +4,7 @@ import {
   buildRefineSystemPrompt,
   buildRefineUserPrompt,
   buildSystemPrompt,
+  withHouseStyle,
 } from "@/lib/prompt";
 import { GroqError, streamGroq, type GroqMessage } from "@/lib/groq";
 import { HtmlExtractor } from "@/lib/html";
@@ -19,6 +20,7 @@ type GenerateBody = {
   model?: unknown;
   mode?: unknown;
   currentHtml?: unknown;
+  houseStyle?: unknown;
 };
 
 /** Newline-delimited JSON so the client can read events without an SSE parser. */
@@ -70,17 +72,26 @@ export async function POST(request: NextRequest) {
   const modelId = typeof body.model === "string" ? body.model : DEFAULT_MODEL;
   const model = getModel(modelId) ?? getModel(DEFAULT_MODEL)!;
 
+  const houseStyle =
+    typeof body.houseStyle === "string" ? body.houseStyle : "";
+
   const messages: GroqMessage[] =
     mode === "refine"
       ? [
-          { role: "system", content: buildRefineSystemPrompt() },
+          {
+            role: "system",
+            content: withHouseStyle(buildRefineSystemPrompt(), houseStyle),
+          },
           {
             role: "user",
             content: buildRefineUserPrompt(currentHtml, prompt),
           },
         ]
       : [
-          { role: "system", content: buildSystemPrompt() },
+          {
+            role: "system",
+            content: withHouseStyle(buildSystemPrompt(), houseStyle),
+          },
           { role: "user", content: prompt },
         ];
 

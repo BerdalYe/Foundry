@@ -10,7 +10,6 @@
  */
 
 const DB_NAME = "foundry";
-const DB_VERSION = 1;
 const STORE = "projects";
 
 export type SavedVersion = {
@@ -53,17 +52,12 @@ function promisify<T>(request: IDBRequest<T>): Promise<T> {
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
-function openDb(): Promise<IDBDatabase> {
-  if (!libraryAvailable()) {
-    return Promise.reject(
-      new LibraryError(
-        "This browser will not let Foundry store anything on the device. Private browsing usually causes this.",
-      ),
-    );
-  }
-
-  dbPromise ??= new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+function openAt(version?: number): Promise<IDBDatabase> {
+  return new Promise<IDBDatabase>((resolve, reject) => {
+    const request =
+      version === undefined
+        ? indexedDB.open(DB_NAME)
+        : indexedDB.open(DB_NAME, version);
 
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -81,6 +75,43 @@ function openDb(): Promise<IDBDatabase> {
         new LibraryError("Another Foundry tab is upgrading storage. Close it."),
       );
   });
+}
+
+/**
+ * Opens the database, repairing it if the store is missing.
+ *
+ * A database can exist at the current version without its object store — an
+ * upgrade that was interrupted, or another tool having created the name first.
+ * Opening at the same version fires no upgrade event, so every read and write
+ * would then fail forever with "object stores was not found". Bumping the
+ * version forces the upgrade that creates it.
+ */
+function openDb(): Promise<IDBDatabase> {
+  if (!libraryAvailable()) {
+    return Promise.reject(
+      new LibraryError(
+        "This browser will not let Foundry store anything on the device. Private browsing usually causes this.",
+      ),
+    );
+  }
+
+  dbPromise ??= (async () => {
+    // No version: adopt whatever exists rather than fighting a higher one.
+    let db = await openAt();
+    if (db.objectStoreNames.contains(STORE)) return db;
+
+    const next = db.version + 1;
+    db.close();
+    db = await openAt(next);
+
+    if (!db.objectStoreNames.contains(STORE)) {
+      db.close();
+      throw new LibraryError(
+        "Foundry's storage could not be repaired. Clearing this site's data in your browser will fix it.",
+      );
+    }
+    return db;
+  })();
 
   // A failed open must not be cached, or every later call fails too.
   return dbPromise.catch((error) => {

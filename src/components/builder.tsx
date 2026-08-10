@@ -11,15 +11,22 @@ import {
 } from "@/components/preview-frame";
 import { EnhanceBar, EnhanceButton } from "@/components/enhance-controls";
 import { ModelDescription, ModelSelect } from "@/components/model-select";
+import { HouseStyleEditor } from "@/components/house-style-editor";
+import { ReviewPanel, type ReviewFinding } from "@/components/review-panel";
+import { CompareView } from "@/components/compare-view";
+import { DownloadMenu } from "@/components/download-menu";
 import { usePromptEnhancer } from "@/lib/use-prompt-enhancer";
+import { readHouseStyle } from "@/lib/house-style";
+import { listSections, replaceSection, styleContext } from "@/lib/sections";
+import { buildZip, splitIntoFiles } from "@/lib/zip";
 import { SetupNotice } from "@/components/setup-notice";
 import { LogoMark } from "@/components/logo";
 import {
   AlertIcon,
   CheckIcon,
+  CompareIcon,
   CodeIcon,
   CopyIcon,
-  DownloadIcon,
   ExpandIcon,
   EyeIcon,
   LayersIcon,
@@ -33,6 +40,7 @@ import {
   SpinnerIcon,
   StopIcon,
   TabletIcon,
+  UploadIcon,
 } from "@/components/icons";
 import { DEFAULT_MODEL } from "@/lib/models";
 import { deriveTitle, finalizeHtml, slugify } from "@/lib/html";
@@ -54,6 +62,8 @@ type Version = {
   html: string;
   createdAt: number;
   partial?: boolean;
+  /** Set when only one block was rewritten, e.g. "Pricing". */
+  scopeLabel?: string;
 };
 
 const SESSION_KEY = "foundry:session";
@@ -82,7 +92,14 @@ export function Builder({ hasKey }: { hasKey: boolean }) {
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const [tab, setTab] = useState<"preview" | "code">("preview");
+  const [tab, setTab] = useState<"preview" | "code" | "compare">("preview");
+  const [houseStyle, setHouseStyle] = useState("");
+  /** "page", or the index of the block a change is scoped to. */
+  const [scope, setScope] = useState("page");
+  const [sectionBusy, setSectionBusy] = useState(false);
+  const [review, setReview] = useState<ReviewFinding[] | null>(null);
+  const [reviewRunning, setReviewRunning] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const [device, setDevice] = useState<Device>("desktop");
   const [fullscreen, setFullscreen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -106,6 +123,8 @@ export function Builder({ hasKey }: { hasKey: boolean }) {
   /** Mirrors `versions` so a finished run can persist without a stale closure. */
   const versionsRef = useRef<Version[]>([]);
   const projectIdRef = useRef<string | null>(null);
+  /** Mirrored so requests don't have to re-create their callbacks per keystroke. */
+  const houseStyleRef = useRef("");
   const htmlRef = useRef("");
   const lastPaintRef = useRef(0);
   const startedRef = useRef(false);
@@ -117,6 +136,14 @@ export function Builder({ hasKey }: { hasKey: boolean }) {
   );
 
   const saved = saveState === "saved";
+
+  const sections = useMemo(
+    () => (activeVersion ? listSections(activeVersion.html) : []),
+    [activeVersion],
+  );
+
+  const scopedSection =
+    scope === "page" ? null : (sections[Number(scope)] ?? null);
 
   /** Keeps the ref mirrors and React state in step. */
   const applyVersions = useCallback((next: Version[]) => {
@@ -145,6 +172,60 @@ export function Builder({ hasKey }: { hasKey: boolean }) {
       await putProject(project);
     },
     [],
+  );
+
+  /**
+   * Adds a finished document as a new version and files it in the library.
+   * Shared by full generation, scoped section rewrites, and imports.
+   */
+  const commitVersion = useCallback(
+    (opts: {
+      html: string;
+      prompt: string;
+      mode: "create" | "refine";
+      modelId: string;
+      partial?: boolean;
+      scopeLabel?: string;
+    }) => {
+      const version: Version = {
+        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+        title: deriveTitle(opts.html, opts.prompt),
+        prompt: opts.prompt,
+        mode: opts.mode,
+        model: opts.modelId,
+        html: opts.html,
+        createdAt: Date.now(),
+        partial: opts.partial,
+        scopeLabel: opts.scopeLabel,
+      };
+
+      const nextVersions = [...versionsRef.current, version];
+      applyVersions(nextVersions);
+      setActiveId(version.id);
+      setPreviewHtml(opts.html);
+      setInput("");
+      setTab("preview");
+      setReview(null);
+
+      // Every finished build lands in the library by itself. The first one
+      // creates the project; the rest keep it current.
+      const id = projectIdRef.current ?? newProjectId();
+      if (!projectIdRef.current) setProject(id);
+      setSaveState("saving");
+      void persist(id, nextVersions, version.id)
+        .then(() => setSaveState("saved"))
+        .catch((err: unknown) => {
+          setSaveState("error");
+          // Auto-save failing silently is worse than not auto-saving at all —
+          // the page is still on screen and looks safe when it is not.
+          setError(
+            `Built, but could not save to this device: ${
+              (err as Error)?.message ?? "storage refused the write"
+            }`,
+          );
+        });
+    },
+    [applyVersions, persist, setProject],
   );
 
   const saveToDevice = useCallback(async () => {
@@ -219,6 +300,7 @@ export function Builder({ hasKey }: { hasKey: boolean }) {
             model: modelId,
             mode,
             currentHtml: mode === "refine" ? baseHtml : undefined,
+            houseStyle: houseStyleRef.current,
           }),
           signal: controller.signal,
         });
@@ -276,47 +358,143 @@ export function Builder({ hasKey }: { hasKey: boolean }) {
         return;
       }
 
-      const version: Version = {
-        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
-        title: deriveTitle(html, prompt),
+      commitVersion({
+        html,
         prompt,
         mode,
-        model: modelId,
-        html,
-        createdAt: Date.now(),
+        modelId,
         partial: aborted || !/<\/html>\s*$/i.test(html),
-      };
+      });
+    },
+    [commitVersion],
+  );
 
-      const nextVersions = [...versionsRef.current, version];
-      applyVersions(nextVersions);
-      setActiveId(version.id);
-      setPreviewHtml(html);
-      setInput("");
-      setTab("preview");
+  /**
+   * Rewrites one block instead of the document. Everything outside it is
+   * copied through untouched, which is both far cheaper and the only way a
+   * long page can be edited without risking truncation elsewhere.
+   */
+  const changeSection = useCallback(
+    async (instruction: string) => {
+      const base = activeVersion;
+      const target = scopedSection;
+      if (!base || !target) return;
 
-      // A project that is already in the library stays current by itself;
-      // an unsaved one just becomes saveable.
-      if (projectIdRef.current) {
-        void persist(projectIdRef.current, nextVersions, version.id)
-          .then(() => setSaveState("saved"))
-          .catch(() => setSaveState("error"));
-      } else {
-        setSaveState("idle");
+      setSectionBusy(true);
+      setError(null);
+      try {
+        const res = await fetch("/api/section", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            instruction,
+            block: target.html,
+            css: styleContext(base.html),
+            model,
+            houseStyle: houseStyleRef.current,
+          }),
+        });
+        const data = (await res.json().catch(() => null)) as {
+          html?: string;
+          error?: string;
+        } | null;
+        if (!res.ok || !data?.html) {
+          throw new Error(data?.error ?? `Request failed (${res.status}).`);
+        }
+
+        commitVersion({
+          html: replaceSection(base.html, target, data.html),
+          prompt: instruction,
+          mode: "refine",
+          modelId: model,
+          scopeLabel: target.label,
+        });
+      } catch (err) {
+        setError((err as Error)?.message ?? "Could not rewrite that section.");
+      } finally {
+        setSectionBusy(false);
       }
     },
-    [applyVersions, persist],
+    [activeVersion, scopedSection, model, commitVersion],
   );
 
   function submit() {
     const prompt = input.trim();
-    if (!prompt || streaming || enhancer.enhancing) return;
+    if (!prompt || streaming || sectionBusy || enhancer.enhancing) return;
     enhancer.reset();
+
+    if (activeVersion && scopedSection) {
+      void changeSection(prompt);
+      return;
+    }
+
     void runGeneration({
       prompt,
       modelId: model,
       mode: activeVersion ? "refine" : "create",
       baseHtml: activeVersion?.html,
     });
+  }
+
+  async function runReview() {
+    if (!activeVersion) return;
+    setReviewRunning(true);
+    setReviewError(null);
+    try {
+      const res = await fetch("/api/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ html: activeVersion.html }),
+      });
+      const data = (await res.json().catch(() => null)) as {
+        findings?: ReviewFinding[];
+        error?: string;
+      } | null;
+      if (!res.ok || !data?.findings) {
+        throw new Error(data?.error ?? `Review failed (${res.status}).`);
+      }
+      setReview(data.findings);
+    } catch (err) {
+      setReviewError((err as Error)?.message ?? "Could not review the page.");
+    } finally {
+      setReviewRunning(false);
+    }
+  }
+
+  /** Brings an existing page in so it can be refined like a generated one. */
+  async function importHtml(file: File) {
+    setError(null);
+    if (file.size > 400_000) {
+      setError("That file is too large to work with. Keep it under 400 KB.");
+      return;
+    }
+    const text = await file.text();
+    if (!/<html[\s>]|<!doctype\s+html/i.test(text)) {
+      setError("That does not look like an HTML page.");
+      return;
+    }
+    commitVersion({
+      html: finalizeHtml(text),
+      prompt: `Imported ${file.name}`,
+      mode: "create",
+      modelId: model,
+    });
+  }
+
+  function downloadZip() {
+    const name = slugify(activeVersion?.title ?? "foundry-site");
+    const bytes = buildZip(splitIntoFiles(shownCode));
+    const blob = new Blob([bytes as unknown as BlobPart], {
+      type: "application/zip",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${name}.zip`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
   }
 
   function stop() {
@@ -366,6 +544,9 @@ export function Builder({ hasKey }: { hasKey: boolean }) {
     setError(null);
     setInput("");
     setMetrics({ overflowBy: 0, viewportWidth: 0, offenders: [] });
+    setScope("page");
+    setReview(null);
+    setReviewError(null);
     enhancer.reset();
     setPane("compose");
     try {
@@ -390,6 +571,12 @@ export function Builder({ hasKey }: { hasKey: boolean }) {
     if (startedRef.current) return;
     startedRef.current = true;
 
+    const style = readHouseStyle();
+    if (style) {
+      houseStyleRef.current = style;
+      setHouseStyle(style);
+    }
+
     // Arriving from the library: that project wins over the tab's session.
     const requested = searchParams.get("project");
     if (requested) {
@@ -409,6 +596,25 @@ export function Builder({ hasKey }: { hasKey: boolean }) {
           setError((err as Error)?.message ?? "Could not open that site.");
         }
       })();
+      return;
+    }
+
+    // Coming from the landing page means "build another one", so this starts a
+    // fresh project rather than adding a version to whatever was here before.
+    // The previous work is already safe — it auto-saved to the library.
+    const pending = takePendingBuild();
+    if (pending) {
+      try {
+        sessionStorage.removeItem(SESSION_KEY);
+      } catch {
+        /* nothing to clear */
+      }
+      setModel(pending.model);
+      void runGeneration({
+        prompt: pending.prompt,
+        modelId: pending.model,
+        mode: "create",
+      });
       return;
     }
 
@@ -434,16 +640,6 @@ export function Builder({ hasKey }: { hasKey: boolean }) {
       }
     } catch {
       /* corrupt session — start clean */
-    }
-
-    const pending = takePendingBuild();
-    if (pending) {
-      setModel(pending.model);
-      void runGeneration({
-        prompt: pending.prompt,
-        modelId: pending.model,
-        mode: "create",
-      });
     }
   }, [runGeneration, searchParams, applyVersions, setProject]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -527,6 +723,11 @@ export function Builder({ hasKey }: { hasKey: boolean }) {
             [
               { value: "preview", label: "Preview", Icon: EyeIcon },
               { value: "code", label: "Code", Icon: CodeIcon },
+              ...(versions.length > 1
+                ? ([
+                    { value: "compare", label: "Compare", Icon: CompareIcon },
+                  ] as const)
+                : []),
             ] as const
           ).map(({ value, label, Icon }) => (
             <button
@@ -593,16 +794,11 @@ export function Builder({ hasKey }: { hasKey: boolean }) {
           <span className="hidden sm:inline">{copied ? "Copied" : "Copy"}</span>
         </button>
 
-        <button
-          type="button"
-          onClick={download}
+        <DownloadMenu
           disabled={!hasOutput || streaming}
-          aria-label="Download the HTML file"
-          className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-2.5 text-xs font-semibold text-fg-muted transition-colors duration-150 hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <DownloadIcon size={14} />
-          <span className="hidden sm:inline">Download</span>
-        </button>
+          onSingleFile={download}
+          onZip={downloadZip}
+        />
 
         <button
           type="button"
@@ -656,6 +852,17 @@ export function Builder({ hasKey }: { hasKey: boolean }) {
       >
         {!hasOutput ? (
           <EmptyCanvas streaming={streaming} />
+        ) : tab === "compare" && versions.length > 1 ? (
+          <CompareView
+            versions={versions.map((v) => ({
+              id: v.id,
+              title: v.title,
+              prompt: v.prompt,
+            }))}
+            htmlFor={(id) => versions.find((v) => v.id === id)?.html ?? ""}
+            initialLeftId={versions.at(-2)!.id}
+            initialRightId={activeId ?? versions.at(-1)!.id}
+          />
         ) : tab === "preview" ? (
           <PreviewFrame
             html={shownHtml}
@@ -686,7 +893,14 @@ export function Builder({ hasKey }: { hasKey: boolean }) {
               type="button"
               onClick={() => void saveToDevice()}
               disabled={!versions.length || streaming || saveState === "saving"}
-              aria-label={saved ? "Saved to this device" : "Save to this device"}
+              aria-label={
+                saved ? "Saved to this device" : "Save to this device now"
+              }
+              title={
+                saved
+                  ? "Saved automatically to this device"
+                  : "Save to this device"
+              }
               className={`flex h-10 cursor-pointer items-center gap-1.5 rounded-lg border px-3 text-sm font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40 ${
                 saved
                   ? "border-accent-border bg-accent-soft text-accent"
@@ -723,7 +937,9 @@ export function Builder({ hasKey }: { hasKey: boolean }) {
         }
       />
 
-      <div className="flex min-h-0 flex-1">
+      {/* Capped and centred: edge-to-edge on a wide monitor left the compose
+          panel hugging one corner and the preview sitting right of centre. */}
+      <div className="mx-auto flex min-h-0 w-full max-w-[1700px] flex-1">
         {/* Compose panel --------------------------------------------- */}
         <aside
           className={`w-full min-w-0 shrink-0 flex-col border-border bg-surface lg:flex lg:w-[400px] lg:border-r ${
@@ -744,13 +960,53 @@ export function Builder({ hasKey }: { hasKey: boolean }) {
                 className="flex items-center gap-2 text-sm font-semibold text-fg"
               >
                 {isRefine ? <PenIcon size={15} /> : <SparkIcon size={15} />}
-                {isRefine ? "Describe a change" : "Describe the site"}
+                {isRefine
+                  ? scopedSection
+                    ? `Change the ${scopedSection.label} section`
+                    : "Describe a change"
+                  : "Describe the site"}
               </label>
               <p className="mt-1 text-xs leading-relaxed text-fg-muted">
-                {isRefine
-                  ? "The whole page is rewritten around your change. Everything you do not mention stays as it is."
-                  : "Say who it is for, what it needs to say, and how it should feel."}
+                {!isRefine
+                  ? "Say who it is for, what it needs to say, and how it should feel."
+                  : scopedSection
+                    ? "Only this block is rewritten. The rest of the page is copied through untouched — quicker, cheaper, and it cannot break anything else."
+                    : "The whole page is rewritten around your change. Everything you do not mention stays as it is."}
               </p>
+
+              {/* Scope. Rewriting one block is the cheap path and the safe one,
+                  so it is offered right where the change is described. */}
+              {sections.length > 1 && !streaming && (
+                <div
+                  role="group"
+                  aria-label="What to change"
+                  className="mt-3 flex flex-wrap gap-1.5"
+                >
+                  {[{ value: "page", label: "Whole page" }].concat(
+                    sections.map((s) => ({
+                      value: String(s.index),
+                      label: s.label,
+                    })),
+                  ).map(({ value, label }) => {
+                    const active = scope === value;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => setScope(value)}
+                        className={`cursor-pointer rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors duration-150 ${
+                          active
+                            ? "border-accent-border bg-accent-soft text-accent"
+                            : "border-border bg-surface-2 text-fg-muted hover:border-border-strong hover:text-fg"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               <textarea
                 ref={textareaRef}
@@ -760,9 +1016,11 @@ export function Builder({ hasKey }: { hasKey: boolean }) {
                 value={input}
                 disabled={streaming}
                 placeholder={
-                  isRefine
-                    ? "Make the hero warmer and add a pricing table with three tiers."
-                    : "A landing page for a small-batch coffee roaster in Oslo…"
+                  scopedSection
+                    ? `Make the ${scopedSection.label.toLowerCase()} clearer and add a third option.`
+                    : isRefine
+                      ? "Make the hero warmer and add a pricing table with three tiers."
+                      : "A landing page for a small-batch coffee roaster in Oslo…"
                 }
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -806,11 +1064,23 @@ export function Builder({ hasKey }: { hasKey: boolean }) {
                     />
                     <button
                       type="submit"
-                      disabled={!input.trim() || enhancer.enhancing}
+                      disabled={
+                        !input.trim() || enhancer.enhancing || sectionBusy
+                      }
                       className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-accent-fg transition-all duration-150 hover:bg-accent-hover active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100"
                     >
-                      <SparkIcon size={15} />
-                      {isRefine ? "Apply change" : "Cast the site"}
+                      {sectionBusy ? (
+                        <SpinnerIcon size={15} />
+                      ) : (
+                        <SparkIcon size={15} />
+                      )}
+                      {sectionBusy
+                        ? "Rewriting…"
+                        : scopedSection
+                          ? "Change section"
+                          : isRefine
+                            ? "Apply change"
+                            : "Cast the site"}
                     </button>
                   </div>
                 )}
@@ -889,6 +1159,54 @@ export function Builder({ hasKey }: { hasKey: boolean }) {
                 </div>
               </div>
             )}
+
+            {/* Import — only offered before there is anything to lose. */}
+            {!versions.length && !streaming && (
+              <div className="mt-6 rounded-xl border border-dashed border-border-strong p-4 text-center">
+                <p className="text-xs leading-relaxed text-fg-muted">
+                  Already have a page? Bring it in and refine it here.
+                </p>
+                <label className="mt-2.5 inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface-2 px-3.5 text-xs font-semibold text-fg transition-colors duration-150 hover:bg-surface-3">
+                  <UploadIcon size={14} />
+                  Import an HTML file
+                  <input
+                    type="file"
+                    accept=".html,.htm,text/html"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (file) void importHtml(file);
+                    }}
+                  />
+                </label>
+              </div>
+            )}
+
+            {activeVersion && !streaming && (
+              <ReviewPanel
+                findings={review}
+                running={reviewRunning}
+                error={reviewError}
+                onRun={() => void runReview()}
+                disabled={!hasKey}
+                onApply={(fix) => {
+                  setScope("page");
+                  enhancer.reset();
+                  setInput(fix);
+                  setPane("compose");
+                  textareaRef.current?.focus();
+                }}
+              />
+            )}
+
+            <HouseStyleEditor
+              value={houseStyle}
+              onChange={(next) => {
+                houseStyleRef.current = next;
+                setHouseStyle(next);
+              }}
+            />
 
             {/* Versions */}
             {versions.length > 0 && (

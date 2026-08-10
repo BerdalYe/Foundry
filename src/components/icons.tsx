@@ -191,6 +191,28 @@ export const LibraryIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const UploadIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12 16V4M7 8l5-5 5 5" />
+    <path d="M3 19h18" />
+  </Icon>
+);
+
+export const CompareIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="2.5" y="4" width="8" height="16" rx="1.5" />
+    <rect x="13.5" y="4" width="8" height="16" rx="1.5" />
+  </Icon>
+);
+
+export const ArchiveIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3" y="4" width="18" height="4.5" rx="1" />
+    <path d="M5 8.5V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8.5" />
+    <path d="M10 12.5h4" />
+  </Icon>
+);
+
 export const SaveIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" />

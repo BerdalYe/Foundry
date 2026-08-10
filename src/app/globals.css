@@ -96,6 +96,9 @@
 
   html {
     -webkit-text-size-adjust: 100%;
+    /* In-page anchors glide instead of teleporting. The reduced-motion block
+       below resets this to auto. */
+    scroll-behavior: smooth;
   }
 
   body {

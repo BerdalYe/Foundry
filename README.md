@@ -37,6 +37,10 @@ Open [http://localhost:3000](http://localhost:3000).
 | `src/lib/library.ts`          | The IndexedDB store behind the library. Nothing leaves the browser. |
 | `src/app/api/generate/route.ts` | Streams Groq's output to the browser as newline-delimited JSON. |
 | `src/app/api/enhance/route.ts` | Rewrites a short description into a full brief before building. |
+| `src/app/api/section/route.ts` | Rewrites one block of a page instead of the whole document.      |
+| `src/app/api/review/route.ts` | Reads a finished page back and returns findings with fixes.      |
+| `src/lib/sections.ts`         | Finds top-level blocks by source offset, so splices are exact.   |
+| `src/lib/zip.ts`              | Splits the single file into html/css/js and zips it, no deps.    |
 | `src/lib/groq.ts`             | `server-only`. Holds the key, parses Groq's SSE frames.          |
 | `src/lib/prompt.ts`           | The system prompts — the design rules every generated page follows. |
 | `src/lib/html.ts`             | Pulls a clean document out of whatever the model actually emitted. |

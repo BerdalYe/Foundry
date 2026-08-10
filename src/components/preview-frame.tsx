@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 export type Device = "desktop" | "tablet" | "mobile";
 
@@ -53,12 +53,23 @@ export const DEVICE_WIDTH: Record<Device, string> = {
  * document.
  */
 const NAVIGATION_GUARD = `<script data-foundry-preview-guard>(function(){
+  // Announce that this really is the generated document. If a load happens
+  // without this, the frame navigated somewhere else and the parent restores it.
+  function hello() {
+    try { parent.postMessage({ source: 'foundry-preview', hello: true }, '*'); } catch (e) {}
+  }
+  hello();
+  window.addEventListener('DOMContentLoaded', hello);
+  window.addEventListener('load', hello);
+
   function scrollTo(target) {
     var reduce = window.matchMedia
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
   }
-  document.addEventListener('click', function (event) {
+  // On window, not document: capture runs window-first, so a page script that
+  // captures on document and calls stopPropagation cannot shut this out.
+  window.addEventListener('click', function (event) {
     var el = event.target;
     var link = el && el.closest ? el.closest('a[href]') : null;
     if (!link) return;
@@ -76,7 +87,7 @@ const NAVIGATION_GUARD = `<script data-foundry-preview-guard>(function(){
       if (target) scrollTo(target);
     } catch (e) {}
   }, true);
-  document.addEventListener('submit', function (event) {
+  window.addEventListener('submit', function (event) {
     event.preventDefault();
   }, true);
 
@@ -158,6 +169,31 @@ export function PreviewFrame({
 }) {
   const guarded = useMemo(() => guard(html), [html]);
   const frameRef = useRef<HTMLIFrameElement>(null);
+  const lastHelloRef = useRef(0);
+  const restoresRef = useRef(0);
+
+  // Nothing should be able to navigate the frame, but generated JavaScript is
+  // inventive — `location.href = "#x"` resolves against the parent URL and
+  // leaves Foundry rendering unstyled inside the preview. Rather than chase
+  // every route out, notice when the document on screen is no longer ours and
+  // put it back.
+  useEffect(() => {
+    restoresRef.current = 0;
+  }, [guarded]);
+
+  const handleLoad = useCallback(() => {
+    const sinceHello = Date.now() - lastHelloRef.current;
+    if (sinceHello < 1500) return; // Our own document announced itself.
+
+    window.setTimeout(() => {
+      if (Date.now() - lastHelloRef.current < 1500) return;
+      const frame = frameRef.current;
+      // Cap the retries: a page that navigates on every load would loop.
+      if (!frame || restoresRef.current >= 2) return;
+      restoresRef.current += 1;
+      frame.srcdoc = guarded;
+    }, 400);
+  }, [guarded]);
 
   useEffect(() => {
     const notify = onMeasure;
@@ -171,6 +207,10 @@ export function PreviewFrame({
       if (event.source !== frameRef.current?.contentWindow) return;
       const data = event.data as Record<string, unknown> | null;
       if (!data || data.source !== "foundry-preview") return;
+
+      // Any message from the guard proves the real document is still loaded.
+      lastHelloRef.current = Date.now();
+      if (data.hello) return;
 
       const scrollWidth = Number(data.scrollWidth);
       const clientWidth = Number(data.clientWidth);
@@ -245,6 +285,7 @@ export function PreviewFrame({
           sandbox="allow-scripts allow-forms allow-modals"
           referrerPolicy="no-referrer"
           loading="lazy"
+          onLoad={handleLoad}
           className={`h-full w-full border-0 bg-white ${
             isDesktop ? "sm:rounded-lg" : ""
           }`}

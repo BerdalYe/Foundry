@@ -8,9 +8,10 @@ import { Reveal } from "@/components/reveal";
 import {
   ArrowRightIcon,
   CodeIcon,
-  DownloadIcon,
+  CompareIcon,
   EyeIcon,
   LayersIcon,
+  LibraryIcon,
   PenIcon,
   SparkIcon,
 } from "@/components/icons";
@@ -19,76 +20,80 @@ const STEPS = [
   {
     n: "01",
     title: "Describe it",
-    body: "One or two sentences is enough. Say who the site is for, what it needs to say, and how it should feel. Detail helps, but nothing is required.",
+    body: "A sentence is enough. If it feels thin, press Improve and it becomes a proper brief — sections, audience, real specifics — before anything is built.",
     Icon: PenIcon,
   },
   {
     n: "02",
-    title: "Watch it cast",
+    title: "Watch it build",
     body: "The page streams in as it is written, then renders live in a sandboxed preview. Check it at phone, tablet and desktop widths without leaving the page.",
     Icon: EyeIcon,
   },
   {
     n: "03",
-    title: "Refine and keep",
-    body: "Ask for changes in plain English — warmer palette, add a pricing table, cut the testimonials. Every version is kept. Download the file when you like it.",
-    Icon: DownloadIcon,
+    title: "Refine, section by section",
+    body: "Change the whole page, or scope a change to one block — the pricing table, the header — which takes about a second and cannot disturb anything else.",
+    Icon: LayersIcon,
   },
 ];
 
 const FEATURES = [
   {
-    title: "One file, no build step",
-    body: "HTML, CSS and JavaScript in a single document. Open it in a browser, drop it on any host, or paste it into an existing project.",
+    title: "One file, or three",
+    body: "Take it as a single self-contained .html, or as a zip of index.html, styles.css and script.js when you want to keep working on it properly.",
     Icon: CodeIcon,
   },
   {
-    title: "Responsive from the start",
-    body: "Mobile-first layouts with real breakpoints — not a desktop page that happens to shrink.",
-    Icon: LayersIcon,
+    title: "Saved as you go",
+    body: "Every build lands in your library automatically, stored on your device. Close the browser and it is still there. Nothing is kept on a server.",
+    Icon: LibraryIcon,
   },
   {
-    title: "Dark mode included",
-    body: "Every page ships a matching dark scheme driven by prefers-color-scheme, designed alongside the light one.",
+    title: "Have it reviewed",
+    body: "Ask for a read-back and get specific findings — hierarchy, copy, mobile layout, accessibility — each with a fix you can apply in one click.",
     Icon: SparkIcon,
   },
   {
-    title: "Accessible by default",
-    body: "Semantic landmarks, labelled controls, visible focus rings, contrast-checked colour pairs, and reduced-motion support.",
-    Icon: EyeIcon,
-  },
-  {
-    title: "Written content, not filler",
-    body: "Plausible copy, prices, hours and names for the subject you described. No lorem ipsum, no bracketed placeholders.",
+    title: "A house style that sticks",
+    body: "Set standing instructions once — British English, no stock photos, your brand colour — and every build follows them without retyping.",
     Icon: PenIcon,
   },
   {
-    title: "Yours to keep",
-    body: "No account, no lock-in, no runtime dependency on Foundry. Copy the code or download the file and walk away with it.",
-    Icon: DownloadIcon,
+    title: "Accessible and responsive",
+    body: "Mobile-first layouts, semantic landmarks, labelled controls, visible focus rings, contrast-checked pairs, and a matching dark scheme.",
+    Icon: EyeIcon,
+  },
+  {
+    title: "Bring your own page",
+    body: "Import an HTML file you already have and refine it here. Compare any two versions side by side to see exactly what changed.",
+    Icon: CompareIcon,
   },
 ];
 
 const FAQ = [
   {
     q: "What exactly do I get?",
-    a: "A single .html file containing the whole page — markup, styles and any scripts. It runs by double-clicking it. Photos, when a page uses them, are loaded from picsum.photos, and fonts from Google Fonts; everything else is self-contained.",
+    a: "Either a single .html file with the markup, styles and scripts inline — double-click and it runs — or a zip of index.html, styles.css and script.js. Photos, when a page uses them, come from picsum.photos and fonts from Google Fonts; everything else is self-contained.",
   },
   {
-    q: "Can I change it after it is generated?",
-    a: "Yes, in two ways. Describe the change in the refine box and the page is rewritten around it, or open the code panel, copy it out and edit by hand. Foundry keeps every version, so you can step back to an earlier one at any time.",
+    q: "Where is my work saved?",
+    a: "In your browser's own storage, on this device, automatically — you never press save. Closing the browser does not lose it. Nothing is stored on a server, which also means your library does not follow you to another machine.",
+  },
+  {
+    q: "Can I change just one part of the page?",
+    a: "Yes, and it is the better way to work. Pick a section — pricing, the header, whatever the page has — and only that block is rewritten. It takes about a second instead of half a minute, and it cannot disturb the rest of the page.",
   },
   {
     q: "Which model should I pick?",
-    a: "GPT-OSS 120B is the default and produces the most complete pages. Drop to GPT-OSS 20B or Llama 3.1 8B when you want a rough draft quickly — you can switch models between refinements on the same page.",
+    a: "GPT-OSS 120B is the default and produces the most complete pages. Drop to GPT-OSS 20B or Llama 3.1 8B for a quick draft, or Llama 3.3 70B when a page is long enough to get cut off. Improve and Review deliberately run on a different model, so they never eat the budget the build needs.",
   },
   {
-    q: "Where does my description go?",
-    a: "To Groq's API, from this app's server, using the key in your .env.local. Nothing is stored server-side: your builds live in your browser tab and disappear when you close it.",
+    q: "Can I bring a page I already have?",
+    a: "Yes. Import an HTML file and it becomes your first version, refinable exactly like a generated one — whole page or one section at a time.",
   },
   {
     q: "Do I need an API key?",
-    a: "Yes — a free one from console.groq.com/keys. It goes in .env.local as GROQ_API_KEY and is only ever read on the server, never sent to the browser.",
+    a: "Yes — a free one from console.groq.com/keys. It goes in .env.local as GROQ_API_KEY, or in your host's environment variables, and is only ever read on the server, never sent to the browser.",
   },
 ];
 
@@ -234,8 +239,8 @@ export default function Home() {
                   Questions
                 </h2>
                 <p className="mt-4 text-base leading-relaxed text-fg-muted">
-                  The short version: it is one HTML file, it is yours, and
-                  nothing is stored.
+                  The short version: it is yours, it saves itself, and nothing
+                  leaves your machine.
                 </p>
               </div>
 

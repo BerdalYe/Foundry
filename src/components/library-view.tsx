@@ -345,7 +345,7 @@ function EmptyLibrary({ searching }: { searching: boolean }) {
       <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-fg-muted">
         {searching
           ? "Try a different word, or clear the search to see everything."
-          : "Build a site, then press Save in the builder to keep it on this device. Saved sites survive closing the tab."}
+          : "Every site you build is saved here automatically, on this device. They survive closing the browser."}
       </p>
       {!searching && (
         <Link

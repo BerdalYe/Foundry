@@ -125,6 +125,92 @@ followed by a change request.
   return a diff, a fragment, or a summary of what you changed.`;
 }
 
+/** Standing preferences, folded into whichever system prompt is in play. */
+export function withHouseStyle(base: string, houseStyle: string): string {
+  const style = houseStyle.trim().slice(0, 600);
+  if (!style) return base;
+  return `${base}
+
+HOUSE STYLE — the person's standing preferences. They override the general
+guidance above wherever the two disagree, except for the accessibility and
+length rules, which always win:
+${style}`;
+}
+
+/**
+ * Rewriting one block instead of the whole document is both far cheaper and
+ * safer: everything outside the block is copied through untouched, so a change
+ * to the pricing table cannot quietly restyle the hero or truncate the footer.
+ */
+export function buildSectionSystemPrompt(): string {
+  return `You rewrite ONE block of an existing web page. You are given the
+page's CSS for context, the current block, and a change request.
+
+- Reply with the replacement block and NOTHING else: no explanation, no
+  markdown fence, no surrounding document.
+- Start with the same opening tag type you were given (<section>, <header> or
+  <footer>) and close it. Keep its id and its classes unless the change
+  requires otherwise — the page's CSS targets them.
+- Reuse the existing CSS custom properties and class names so the block still
+  matches the rest of the page. Never restate the whole stylesheet.
+- If the change genuinely needs new CSS, put a small <style> element INSIDE the
+  block and scope every rule to that block's id or classes.
+- Keep it responsive and accessible: nothing wider than the viewport, tables
+  inside an overflow-x:auto wrapper, real labels on inputs, alt text on images,
+  contrast of at least 4.5:1 both light and dark.
+- Change only what was asked. Preserve the block's other content and wording.`;
+}
+
+export function buildSectionUserPrompt(
+  css: string,
+  blockHtml: string,
+  instruction: string,
+): string {
+  return `The page's CSS:
+
+${css}
+
+---
+
+The current block:
+
+${blockHtml}
+
+---
+
+Change request: ${instruction}
+
+Return the complete replacement block.`;
+}
+
+/**
+ * The reviewer is deliberately a critic, not a fixer: it returns findings the
+ * builder turns into one-click refine instructions, so the person stays in
+ * charge of what actually changes.
+ */
+export function buildReviewSystemPrompt(): string {
+  return `You are a senior web designer reviewing a finished one-page website.
+You are shown its HTML. Find what would most improve it.
+
+Judge it on: visual hierarchy and whether the page has a point of view; clarity
+and specificity of the copy; responsive behaviour at 390px; accessibility
+(contrast, labels, alt text, focus states, heading order); and whether anything
+promised is missing or unfinished.
+
+Reply with JSON and nothing else, in exactly this shape:
+{"findings":[{"title":"...","detail":"...","fix":"...","severity":"high"}]}
+
+- 3 to 5 findings, best first. Fewer is fine if the page is genuinely good.
+- "title": under 60 characters, the problem itself, not a compliment.
+- "detail": one or two sentences naming the specific element or copy at fault.
+- "fix": a single instruction, phrased as a direct request to the designer, that
+  would resolve it. It will be handed to a model verbatim, so make it concrete
+  and self-contained.
+- "severity": "high", "medium" or "low".
+- Never invent problems that are not in the HTML. Never comment on things you
+  cannot see, like load speed or analytics. No markdown, no code fences.`;
+}
+
 /**
  * Turning "make a simple racing website" into a real brief is the single
  * biggest lever on output quality — a four-word prompt gives the model nothing
@@ -147,21 +233,28 @@ editing an existing one-page website.
 - Reply with the instruction alone: no preamble, no quotes around it.`;
   }
 
-  return `You rewrite a short website request into a clear brief that a web
-designer could build from without asking a single question.
+  return `You rewrite a short website request into a clear brief about WHAT the
+site is and what belongs on it. A designer will handle how it looks.
 
 - Keep the person's subject and intent exactly. Never change what the site is
   for, and never swap their topic for a different one.
-- Fill in what they left unsaid: who it is for and the tone, the sections the
-  page needs and what belongs in each, a specific colour and typography
-  direction, and any interactive parts (navigation, tabs, accordions, filters,
-  forms).
+- Add substance: who it is for, what it needs to communicate, and the three to
+  five sections the page needs with what goes in each.
 - Invent plausible specifics where they make the brief concrete — a business
   name, prices, opening hours, a place, example items. Never write a bracketed
   placeholder.
-- Ask for one page. Do not propose multiple pages or a site map.
-- Write 90-160 words of plain prose. It is a brief, not HTML, not markdown
-  headings, not a numbered plan.
+- Name the interactive parts only if the subject genuinely needs them (a
+  booking form, a filterable list, a schedule).
+
+DO NOT specify visual design. No colour palettes, no hex values, no font
+choices, no "modern and sleek", no layout mechanics. The designer chooses those
+and is better at it than you are; dictating them makes the result worse. The
+ONLY exception is a look the person asked for themselves — if they said "dark"
+or "playful", carry that through in their words and add nothing.
+
+- Ask for one page. Never propose multiple pages or a site map.
+- Stay tight: 60-110 words of plain prose. A longer brief crowds the page and
+  gets it cut off. Three good sections beat six thin ones.
 - Reply with the brief and nothing else: no preamble, no "Here is", no quotes
   wrapped around it, no closing question.`;
 }
