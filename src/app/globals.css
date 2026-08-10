@@ -1,0 +1,280 @@
+@import "tailwindcss";
+
+/* Class-based dark mode. The `.dark` class is set on <html> by the inline
+   theme script in layout.tsx before first paint. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+   Semantic tokens. Every colour used in a component comes from here — no raw
+   hex in JSX. Light and dark are authored as a pair, not derived from each
+   other, and both sides are contrast-checked (body text ≥ 4.5:1, muted ≥ 4.5:1,
+   subtle ≥ 3:1 and only used at large sizes).
+--------------------------------------------------------------------------- */
+:root {
+  --bg: #fcfcfb;
+  --surface: #ffffff;
+  --surface-2: #f6f5f3;
+  --surface-3: #eeece8;
+  --border: #e5e2dd;
+  --border-strong: #d4cfc7;
+  --fg: #1a1917;
+  --fg-muted: #6b6862;
+  --fg-subtle: #74706a;
+  --accent: #c2410c;
+  --accent-hover: #9a3412;
+  --accent-fg: #ffffff;
+  --accent-soft: #fdf3ed;
+  --accent-border: #f2d3c1;
+  --danger: #b42318;
+  --danger-fg: #ffffff;
+  --success: #15803d;
+  --syntax-string: #0f766e;
+  --shadow-color: 28 25 23;
+}
+
+.dark {
+  --bg: #0e0e0d;
+  --surface: #171716;
+  --surface-2: #1e1d1b;
+  --surface-3: #262421;
+  --border: #2c2a27;
+  --border-strong: #403c37;
+  --fg: #f2f0ed;
+  --fg-muted: #a3a099;
+  --fg-subtle: #8a867e;
+  --accent: #fb923c;
+  --accent-hover: #fdba74;
+  --accent-fg: #1a1002;
+  --accent-soft: #2a1a0c;
+  --accent-border: #45291195;
+  --danger: #f87171;
+  /* Dark text on the lighter dark-mode red — white would be 2.6:1. */
+  --danger-fg: #1a1002;
+  --success: #4ade80;
+  --syntax-string: #5eead4;
+  --shadow-color: 0 0 0;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-border: var(--accent-border);
+  --color-danger: var(--danger);
+  --color-danger-fg: var(--danger-fg);
+  --color-success: var(--success);
+  --color-syntax-string: var(--syntax-string);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, "SF Mono", "Cascadia Code",
+    monospace;
+
+  /* One elevation scale, used consistently: raised → overlay → modal. */
+  --shadow-raised: 0 1px 2px rgb(var(--shadow-color) / 0.04),
+    0 1px 3px rgb(var(--shadow-color) / 0.04);
+  --shadow-overlay: 0 4px 8px -2px rgb(var(--shadow-color) / 0.06),
+    0 12px 24px -6px rgb(var(--shadow-color) / 0.08);
+  --shadow-modal: 0 8px 16px -4px rgb(var(--shadow-color) / 0.1),
+    0 24px 48px -12px rgb(var(--shadow-color) / 0.14);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--fg);
+    font-synthesis-weight: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* A single, always-visible focus treatment. Never removed. */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background-color: var(--accent);
+    color: var(--accent-fg);
+  }
+
+  ::placeholder {
+    color: var(--fg-subtle);
+  }
+
+  /* Thin, theme-aware scrollbars for the code and log panes. */
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  .scroll-thin::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .scroll-thin::-webkit-scrollbar-thumb {
+    background-color: var(--border-strong);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+  }
+}
+
+@layer utilities {
+  /* Hairline dot field behind the hero, faded out toward the edges. */
+  .bg-dots {
+    background-image: radial-gradient(
+      circle at 1px 1px,
+      var(--border-strong) 1px,
+      transparent 0
+    );
+    background-size: 22px 22px;
+    -webkit-mask-image: radial-gradient(
+      ellipse 70% 60% at 50% 30%,
+      #000 20%,
+      transparent 75%
+    );
+    mask-image: radial-gradient(
+      ellipse 70% 60% at 50% 30%,
+      #000 20%,
+      transparent 75%
+    );
+  }
+
+  /* The surface the previewed device sits on. Deliberately distinct from both
+     a white page and a near-black one, so the device reads as an object. */
+  .bg-canvas {
+    background-color: var(--surface-3);
+    background-image: radial-gradient(
+      circle at 1px 1px,
+      var(--border-strong) 1px,
+      transparent 0
+    );
+    background-size: 20px 20px;
+  }
+
+  .animate-in-up {
+    animation: in-up 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* Scroll reveal. Transform and opacity only, so it never triggers layout. */
+  .reveal {
+    opacity: 0;
+    transform: translateY(14px);
+    transition:
+      opacity 520ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 520ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .reveal-shown {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Cards that respond to the pointer without moving their neighbours. */
+  .lift {
+    transition:
+      transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 150ms ease-out,
+      box-shadow 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .lift:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-overlay);
+  }
+
+  .animate-scrim {
+    animation: scrim-in 180ms ease-out both;
+  }
+  .animate-dialog {
+    animation: dialog-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .caret-blink::after {
+    content: "";
+    display: inline-block;
+    width: 0.5ch;
+    height: 1em;
+    margin-left: 1px;
+    vertical-align: text-bottom;
+    background-color: var(--accent);
+    animation: blink 1s steps(2, start) infinite;
+  }
+}
+
+@keyframes in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes scrim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Motion is meaning here, not decoration — but it is always optional. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Reveals start visible rather than snapping in: with transitions disabled
+     there is no animation left to watch, only a flicker to avoid. */
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+  .lift:hover {
+    transform: none;
+  }
+}
