@@ -42,6 +42,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | `src/lib/sections.ts`         | Finds top-level blocks by source offset, so splices are exact.   |
 | `src/lib/zip.ts`              | Splits the single file into html/css/js and zips it, no deps.    |
 | `src/lib/groq.ts`             | `server-only`. Holds the key, parses Groq's SSE frames.          |
+| `src/lib/models.ts`           | The models on offer, and the one Improve and Review run on. Groq retires models often — check [its deprecations page](https://console.groq.com/docs/deprecations) when one stops working. |
 | `src/lib/prompt.ts`           | The system prompts — the design rules every generated page follows. |
 | `src/lib/html.ts`             | Pulls a clean document out of whatever the model actually emitted. |
 | `src/app/globals.css`         | Semantic colour tokens for light and dark. No raw hex in components. |
@@ -96,5 +97,6 @@ Light and dark are authored as a pair; both sides are contrast-checked.
 
 ## Stack
 
-Next.js 16 (App Router, Turbopack), React 19.2, Tailwind CSS v4, TypeScript.
+Next.js 16.4 (App Router, Turbopack), React 19.3, Tailwind CSS v4, TypeScript 6.
+TypeScript stays on 6.0 because `typescript-eslint` does not support 7 yet.
 No UI library — the components in `src/components` are the whole system.

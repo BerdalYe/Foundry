@@ -26,15 +26,17 @@ export class HtmlExtractor {
 
     this.buffer += chunk;
 
-    // A reasoning block can legitimately contain "<html"; wait it out.
-    if (this.buffer.includes("<think>") && !this.buffer.includes("</think>")) {
-      return "";
-    }
+    // A reasoning block can legitimately contain "<html"; wait it out, then
+    // only look for the document after it.
+    const thinkOpen = this.buffer.lastIndexOf("<think>");
+    const thinkClose = this.buffer.lastIndexOf("</think>");
+    if (thinkOpen > thinkClose) return "";
+    const from = thinkClose === -1 ? 0 : thinkClose + "</think>".length;
 
-    const match = DOC_START.exec(this.buffer);
+    const match = DOC_START.exec(this.buffer.slice(from));
     if (match) {
       this.started = true;
-      const doc = this.buffer.slice(match.index);
+      const doc = this.buffer.slice(from + match.index);
       this.buffer = "";
       this.tail = doc.slice(-TAIL);
       return doc.slice(0, -TAIL || undefined);

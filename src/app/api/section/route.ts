@@ -54,9 +54,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const model = getModel(
-    typeof body.model === "string" ? body.model : DEFAULT_MODEL,
-  )!;
+  const model =
+    getModel(typeof body.model === "string" ? body.model : DEFAULT_MODEL) ??
+    getModel(DEFAULT_MODEL)!;
 
   // A block is a fraction of a page, so ask for a fraction of the budget —
   // this is the whole point of scoping a change.

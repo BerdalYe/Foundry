@@ -1,14 +1,18 @@
 import { NextRequest } from "next/server";
 import { GroqError, completeGroq } from "@/lib/groq";
+import { HELPER_MODEL } from "@/lib/models";
 import { buildReviewSystemPrompt } from "@/lib/prompt";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** As with the enhancer: a different model, so the build budget is untouched. */
-const REVIEW_MODEL = "llama-3.3-70b-versatile";
-const MAX_HTML = 24_000;
-const MAX_OUTPUT_TOKENS = 900;
+/**
+ * Sized so page + findings fit inside a free key's ~8,000 tokens a minute; any
+ * more and Groq rejects the request outright.
+ */
+const MAX_HTML = 16_000;
+/** Includes the helper's reasoning, which is spent before the JSON. */
+const MAX_OUTPUT_TOKENS = 1600;
 
 export type ReviewFinding = {
   title: string;
@@ -35,13 +39,14 @@ export async function POST(request: NextRequest) {
 
   try {
     const raw = await completeGroq({
-      model: REVIEW_MODEL,
+      model: HELPER_MODEL,
       messages: [
         { role: "system", content: buildReviewSystemPrompt() },
         { role: "user", content: html.slice(0, MAX_HTML) },
       ],
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       temperature: 0.3,
+      reasoningEffort: "low",
       signal: request.signal,
     });
 
