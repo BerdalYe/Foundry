@@ -86,7 +86,7 @@ const FAQ = [
   },
   {
     q: "Which model should I pick?",
-    a: "GPT-OSS 120B is the default and produces the most complete pages. Drop to GPT-OSS 20B or Llama 3.1 8B for a quick draft, or Llama 3.3 70B when a page is long enough to get cut off. Improve and Review deliberately run on a different model, so they never eat the budget the build needs.",
+    a: "GPT-OSS 120B is the default and produces the most complete pages. Drop to GPT-OSS 20B for a quick draft, or try Qwen3.8 27B for a different take. Improve and Review run on GPT-OSS 20B, so with the default model they never eat the budget the build needs.",
   },
   {
     q: "Can I bring a page I already have?",

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { GroqError, completeGroq } from "@/lib/groq";
+import { HELPER_MODEL } from "@/lib/models";
 import {
   buildEnhanceRefineUserPrompt,
   buildEnhanceSystemPrompt,
@@ -9,19 +10,13 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_PROMPT = 4000;
-const MAX_OUTPUT_TOKENS = 500;
+/** The helper reasons before it answers, and that comes out of this budget. */
+const MAX_OUTPUT_TOKENS = 1000;
 /**
  * How much of the page the enhancer gets to see. Enough to name real sections;
  * short enough that the request stays inside a minute's token allowance.
  */
 const MAX_CONTEXT_CHARS = 14_000;
-
-/**
- * Deliberately not the model the page is generated with. Groq meters tokens per
- * model per minute, so enhancing on a different model leaves the build model's
- * whole allowance intact for the page itself.
- */
-const ENHANCER_MODEL = "llama-3.3-70b-versatile";
 
 export async function POST(request: NextRequest) {
   let body: { prompt?: unknown; mode?: unknown; currentHtml?: unknown };
@@ -53,7 +48,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const enhanced = await completeGroq({
-      model: ENHANCER_MODEL,
+      model: HELPER_MODEL,
       messages: [
         { role: "system", content: buildEnhanceSystemPrompt(mode) },
         {
@@ -67,6 +62,7 @@ export async function POST(request: NextRequest) {
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       // Low temperature: this should sharpen the request, not reimagine it.
       temperature: 0.4,
+      reasoningEffort: "low",
       signal: request.signal,
     });
 

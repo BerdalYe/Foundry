@@ -1157,9 +1157,10 @@ export function Builder({ hasKey }: { hasKey: boolean }) {
                   </p>
                   <p className="mt-1 text-xs leading-relaxed text-fg-muted">
                     The model ran out of output budget before closing the
-                    document, so parts of it will look broken. Switch to Llama
-                    3.3 70B, which has the largest allowance, or ask for a
-                    shorter page with fewer sections.
+                    document, so parts of it will look broken. Ask for a
+                    shorter page with fewer sections. A free Groq key allows
+                    about 8,000 tokens a minute per model, which caps how long
+                    one page can be; a paid key lifts that.
                   </p>
                 </div>
               </div>
