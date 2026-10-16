@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { HeroComposer } from "@/components/hero-composer";
@@ -97,7 +98,10 @@ const FAQ = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  // Per request, so a key added to the host's environment after the build is
+  // noticed — see build/page.tsx.
+  await connection();
   const hasKey = Boolean(process.env.GROQ_API_KEY);
 
   return (

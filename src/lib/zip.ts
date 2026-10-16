@@ -136,8 +136,16 @@ export function splitIntoFiles(html: string): ZipEntry[] {
   );
 
   doc = doc.replace(
-    /[ \t]*<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>\s*/gi,
-    (_full, body: string) => {
+    /[ \t]*<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>\s*/gi,
+    (full, attrs: string, body: string) => {
+      // JSON-LD, templates and modules are not classic scripts: inside
+      // script.js they would be a syntax error that stops everything else.
+      const type = /\btype\s*=\s*["']?([^"'\s>]+)/i
+        .exec(attrs)?.[1]
+        .toLowerCase();
+      const classic =
+        !type || type === "text/javascript" || type === "application/javascript";
+      if (!classic) return full;
       js.push(body.trim());
       return "";
     },
@@ -145,14 +153,14 @@ export function splitIntoFiles(html: string): ZipEntry[] {
 
   if (css.length) {
     const link = '  <link rel="stylesheet" href="styles.css" />\n';
-    doc = doc.includes("</head>")
+    doc = /<\/head>/i.test(doc)
       ? doc.replace(/<\/head>/i, `${link}</head>`)
       : link + doc;
   }
 
   if (js.length) {
     const tag = '  <script src="script.js" defer></script>\n';
-    doc = doc.includes("</body>")
+    doc = /<\/body>/i.test(doc)
       ? doc.replace(/<\/body>/i, `${tag}</body>`)
       : doc + tag;
   }

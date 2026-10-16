@@ -42,7 +42,7 @@ import {
   TabletIcon,
   UploadIcon,
 } from "@/components/icons";
-import { DEFAULT_MODEL } from "@/lib/models";
+import { DEFAULT_MODEL, isModelId } from "@/lib/models";
 import { deriveTitle, finalizeHtml, slugify } from "@/lib/html";
 import { readNdjsonStream } from "@/lib/ndjson";
 import { takePendingBuild } from "@/lib/handoff";
@@ -562,8 +562,9 @@ export function Builder({ hasKey }: { hasKey: boolean }) {
   // Restore the tab's previous session, then run anything handed over from the
   // landing page. Guarded so React's double-invoked effects cast once.
   //
-  // set-state-in-effect is disabled deliberately: /build is prerendered, so
-  // sessionStorage cannot be read during render without a hydration mismatch.
+  // set-state-in-effect is disabled deliberately: /build is rendered on the
+  // server, so sessionStorage cannot be read during render without a hydration
+  // mismatch.
   // This is a one-shot read of an external store on mount, not a reactive
   // dependency, so it cannot cascade.
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -632,7 +633,11 @@ export function Builder({ hasKey }: { hasKey: boolean }) {
           setActiveId(restored.activeId ?? restored.versions.at(-1)!.id);
           setPane("canvas");
         }
-        if (restored.model) setModel(restored.model);
+        // A model can be retired between visits; keep the default rather than
+        // a select with nothing chosen.
+        if (restored.model && isModelId(restored.model)) {
+          setModel(restored.model);
+        }
         if (restored.projectId) {
           setProject(restored.projectId);
           setSaveState("saved");
