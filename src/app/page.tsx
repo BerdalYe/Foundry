@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { HeroComposer } from "@/components/hero-composer";
@@ -85,7 +86,7 @@ const FAQ = [
   },
   {
     q: "Which model should I pick?",
-    a: "GPT-OSS 120B is the default and produces the most complete pages. Drop to GPT-OSS 20B or Llama 3.1 8B for a quick draft, or Llama 3.3 70B when a page is long enough to get cut off. Improve and Review deliberately run on a different model, so they never eat the budget the build needs.",
+    a: "GPT-OSS 120B is the default and produces the most complete pages. Drop to GPT-OSS 20B for a quick draft, or try Qwen3.8 27B for a different take. Improve and Review run on GPT-OSS 20B, so with the default model they never eat the budget the build needs.",
   },
   {
     q: "Can I bring a page I already have?",
@@ -97,7 +98,10 @@ const FAQ = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  // Per request, so a key added to the host's environment after the build is
+  // noticed — see build/page.tsx.
+  await connection();
   const hasKey = Boolean(process.env.GROQ_API_KEY);
 
   return (

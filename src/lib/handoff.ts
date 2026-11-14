@@ -1,4 +1,4 @@
-import { DEFAULT_MODEL } from "@/lib/models";
+import { DEFAULT_MODEL, isModelId } from "@/lib/models";
 
 /**
  * Carries the hero prompt from the landing page to the builder.
@@ -28,7 +28,10 @@ export function takePendingBuild(): PendingBuild | null {
     if (typeof parsed.prompt !== "string" || !parsed.prompt.trim()) return null;
     return {
       prompt: parsed.prompt,
-      model: typeof parsed.model === "string" ? parsed.model : DEFAULT_MODEL,
+      model:
+        typeof parsed.model === "string" && isModelId(parsed.model)
+          ? parsed.model
+          : DEFAULT_MODEL,
     };
   } catch {
     return null;

@@ -220,7 +220,7 @@ function rateLimitMessage(limits: RateLimits, inputTokens: number): string {
     ? ` This key allows ${limits.limitTokens.toLocaleString()} tokens per minute, and this request needed roughly ${inputTokens.toLocaleString()} just to send.`
     : "";
 
-  return `Groq's per-minute token limit is used up.${budget} ${when} Llama 3.3 70B usually has the most headroom.`;
+  return `Groq's per-minute token limit is used up.${budget} ${when} Each model has its own allowance, so a different model will work straight away.`;
 }
 
 async function readGroqError(res: Response): Promise<string> {
